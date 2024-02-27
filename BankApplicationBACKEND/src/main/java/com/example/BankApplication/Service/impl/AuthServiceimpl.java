@@ -1,4 +1,5 @@
 package com.example.BankApplication.Service.impl;
+import com.example.BankApplication.Dto.JwtAuthResponse;
 import com.example.BankApplication.Dto.LoginDto;
 import com.example.BankApplication.Dto.RegisterDto;
 import com.example.BankApplication.Exception.ToAPiException;
@@ -10,6 +11,7 @@ import com.example.BankApplication.Repository.UserRepository;
 import com.example.BankApplication.Service.AuthService;
 import lombok.AllArgsConstructor;
 import lombok.Setter;
+import org.antlr.v4.runtime.Token;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatus;
@@ -17,10 +19,12 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 @Setter
@@ -54,7 +58,7 @@ public class AuthServiceimpl implements AuthService {
 
             Set<Role> roles=new HashSet<>();
 
-            Role userRole=roleRepository.findByName("ROLE_USER");
+            Role userRole=roleRepository.findByName("USER");
             roles.add(userRole);
             user.setRoles(roles);
             userRepository.save(user);
@@ -63,7 +67,7 @@ public class AuthServiceimpl implements AuthService {
 
 
     @Override
-    public String login(LoginDto loginDto) {
+    public JwtAuthResponse login(LoginDto loginDto) {
 
         Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
                 loginDto.getUsernameOrEmail(),
@@ -73,8 +77,30 @@ public class AuthServiceimpl implements AuthService {
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         String token = jwtTokenProvider.generateToken(authentication);
+       Optional<User> userOptional= userRepository.findByUsernameOrEmail(loginDto.getUsernameOrEmail(),loginDto.getUsernameOrEmail());
 
-        return token;
+       String role=null;
+       if(userOptional.isPresent()){
+    User loggedInUser=userOptional.get();
+    Optional<Role> optionalrole= loggedInUser.getRoles().stream().findFirst();
+
+    if(optionalrole.isPresent()){
+        Role userRole=optionalrole.get();
+        role=userRole.getName();
+    }
+}
+       JwtAuthResponse response=new JwtAuthResponse();
+       response.setRole(role);
+       response.setAccessToken(token);
+
+
+        return response;
+    }
+
+    @Override
+    public User userDetails(String username) {
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
     }
 
 
