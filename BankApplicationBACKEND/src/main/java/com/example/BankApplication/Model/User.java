@@ -3,6 +3,7 @@ package com.example.BankApplication.Model;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.Date;
 import java.util.Set;
 
 
@@ -16,13 +17,13 @@ public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
-    @Column(nullable = false,unique = true)
-    private String name;
     private String username;
     @Column(nullable = false,unique = true)
     private String email;
     @Column(nullable = false)
     private String password;
+
+    private Date createdDate=new Date();
 
     @ManyToMany(fetch = FetchType.EAGER,cascade = CascadeType.ALL)
     @JoinTable(name="user_roles",

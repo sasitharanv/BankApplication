@@ -1,7 +1,10 @@
 package com.example.BankApplication.Jwt;
 
+import com.example.BankApplication.Model.User;
+import com.example.BankApplication.Repository.UserRepository;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
@@ -9,9 +12,14 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.nio.charset.Charset;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
 
 @Component
 public class JwtTokenProvider {
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Value("${app.jwt-secret}")
     private String jwtSecret;
@@ -19,10 +27,14 @@ public class JwtTokenProvider {
     @Value("${app.jwt-expiration-milliseconds}")
     private long jwtExpirationMilliseconds;
 
+    private Set<String> revokedTokens = new HashSet<>();
     // Generate JWT token
     public String generateToken(Authentication authentication) {
         String username = authentication.getName();
+        User user = userRepository.findByEmail(username);
         Date now = new Date();
+
+        // Determine expiration based on last password reset date
         Date expiryDate = new Date(now.getTime() + jwtExpirationMilliseconds);
 
         // Use explicit charset for encoding
@@ -51,11 +63,18 @@ public class JwtTokenProvider {
     // Validate JWT Token
     public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder()
+           Claims claims= Jwts.parserBuilder()
                     .setSigningKey(Keys.hmacShaKeyFor(jwtSecret.getBytes(Charset.forName("UTF-8"))))
                     .build()
-                    .parseClaimsJws(token);
-            // No need to explicitly check for expiration here, as JJWT does it during parsing
+                    .parseClaimsJws(token)
+                    .getBody();
+            // Get expiration date from the claims
+            Date expirationDate = claims.getExpiration();
+
+            if (expirationDate != null && expirationDate.before(new Date())) {
+                System.out.println("Expired JWT token: Token has expired");
+                return false;
+            }
             return true;
         } catch (ExpiredJwtException e) {
             System.out.println("Expired JWT token: " + e.getMessage());
@@ -65,6 +84,10 @@ public class JwtTokenProvider {
             System.out.println("Invalid JWT token: " + e.getMessage());
             return false;
         }
+    }
+    // Logout: Add token to the blacklist
+    public void revokeToken(String token) {
+        revokedTokens.add(token);
     }
 
     // Check if the token has expired - This method is now optional

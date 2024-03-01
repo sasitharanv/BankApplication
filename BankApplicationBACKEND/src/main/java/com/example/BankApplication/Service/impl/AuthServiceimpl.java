@@ -1,7 +1,5 @@
 package com.example.BankApplication.Service.impl;
-import com.example.BankApplication.Dto.JwtAuthResponse;
-import com.example.BankApplication.Dto.LoginDto;
-import com.example.BankApplication.Dto.RegisterDto;
+import com.example.BankApplication.Dto.*;
 import com.example.BankApplication.Exception.ToAPiException;
 import com.example.BankApplication.Jwt.JwtTokenProvider;
 import com.example.BankApplication.Model.Role;
@@ -11,18 +9,18 @@ import com.example.BankApplication.Repository.UserRepository;
 import com.example.BankApplication.Service.AuthService;
 import lombok.AllArgsConstructor;
 import lombok.Setter;
-import org.antlr.v4.runtime.Token;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsChecker;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.Date;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
@@ -51,7 +49,7 @@ public class AuthServiceimpl implements AuthService {
             throw new ToAPiException(HttpStatus.BAD_REQUEST,"The Email Already exists");
         }
         User user=new User();
-        user.setName(registerDto.getName());
+
         user.setPassword(passwordEncoder.encode(registerDto.getPassword()));
         user.setUsername(registerDto.getUsername());
         user.setEmail(registerDto.getEmail());
@@ -98,10 +96,34 @@ public class AuthServiceimpl implements AuthService {
     }
 
     @Override
-    public User userDetails(String username) {
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
+    public UserDetailsDto getCurrentUserDetails() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByEmail(email);
+
+        if (user == null) {
+            throw new UsernameNotFoundException("User Not Found: " + email);
+        }
+
+        UserDetailsDto userDetailsDto = new UserDetailsDto(
+                user.getUsername(), user.getEmail(),user.getRoles());
+
+        return userDetailsDto;
     }
 
 
+    @Override
+    public void changePassword(PasswordChangeDto passwordChangeDto) throws  Exception{
+        Authentication authentication=SecurityContextHolder.getContext().getAuthentication();
+        String email=authentication.getName();
+
+        User user=userRepository.findByEmail(email);
+
+        if(!passwordEncoder.matches(passwordChangeDto.getOldPassword(),user.getPassword())){
+            throw new Exception("Current Password is incorrect");
+        }
+
+        user.setPassword(passwordEncoder.encode(passwordChangeDto.getNewPassword()));
+        userRepository.save(user);
+
+    }
 }
