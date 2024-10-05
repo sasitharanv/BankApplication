@@ -1,12 +1,17 @@
 package com.example.BankApplication.Service.impl;
 import com.example.BankApplication.Dto.*;
+import com.example.BankApplication.Exception.InvalidOtpException;
+import com.example.BankApplication.Exception.NICNotCorrectException;
 import com.example.BankApplication.Exception.ToAPiException;
 import com.example.BankApplication.Jwt.JwtTokenProvider;
-import com.example.BankApplication.Model.Role;
-import com.example.BankApplication.Model.User;
+import com.example.BankApplication.Model.*;
+import com.example.BankApplication.Repository.AccountRepository;
+import com.example.BankApplication.Repository.CustomerRepository;
 import com.example.BankApplication.Repository.RoleRepository;
 import com.example.BankApplication.Repository.UserRepository;
 import com.example.BankApplication.Service.AuthService;
+import com.example.BankApplication.Service.EmailService;
+import com.example.BankApplication.Service.OtpService;
 import lombok.AllArgsConstructor;
 import lombok.Setter;
 import org.springframework.http.HttpStatus;
@@ -31,11 +36,53 @@ import java.util.Set;
 @Service
 public class AuthServiceimpl implements AuthService {
 
+    private final AccountRepository accountRepository;
     private AuthenticationManager authenticationManager;
     private UserRepository userRepository;
     private RoleRepository roleRepository;
     private PasswordEncoder passwordEncoder;
     private JwtTokenProvider jwtTokenProvider;
+    private CustomerRepository customerRepository;
+    private EmailService emailService;
+    private OtpService otpService;
+
+    public String generateOtpForRegistration(GenerateOtpDto generateOtpDto) {
+        // Find Customer by email
+        Optional<Customer> customerOptional = customerRepository.findByEmail(generateOtpDto.getEmail());
+
+        // Unwrap the Optional or throw an exception if the customer is not found
+        Customer customer = customerOptional.orElseThrow(() ->
+                new RuntimeException("The user not found"));
+
+        // Use equals() for string comparison instead of '=='
+        if (!customer.getNICNumber().equals(generateOtpDto.getNICNumber())) {
+            throw new NICNotCorrectException("NIC number for the Customer is not Correct");
+        }
+
+        // Find the account by account number
+        Optional<Accounts> accountsOptional = accountRepository.findByAccountNumber(generateOtpDto.accountNumber);
+
+        // Unwrap the Optional or throw an exception if the account is not found
+        Accounts accounts = accountsOptional.orElseThrow(() ->
+                new RuntimeException("The Account Number is Entered is Not Found"));
+
+        if(accounts.getCustomer().getId()!= customer.getId()){
+            throw new RuntimeException("The Account Number is Entered is Not Incorrect");
+
+        }
+
+        String otp = otpService.generateOtp(customer.getEmail());
+        Email email = new Email();
+        email.setRecipients(customer.getEmail());
+        email.setMessagebody(otp);
+        email.setSubject("OTP for Account Registration");
+        email.setAttachment("");
+
+        emailService.sendsimplemail(email);
+
+        return "OTP sent Successfully!!!";
+    }
+
 
 
     @Override
@@ -43,10 +90,14 @@ public class AuthServiceimpl implements AuthService {
         if(userRepository.existsByUsername(registerDto.getUsername())){
             throw  new ToAPiException(HttpStatus.BAD_REQUEST,"Username Already exists");
         }
-        // check email is alreday exists
         if(userRepository.existsByEmail(registerDto.getEmail()))
         {
             throw new ToAPiException(HttpStatus.BAD_REQUEST,"The Email Already exists");
+        }
+
+        boolean isValidOtp = otpService.validateOtp(registerDto.getEmail(), registerDto.getOtp());
+        if (!isValidOtp) {
+            throw new InvalidOtpException("The Account Number is Entered is Not Incorrect");
         }
         User user=new User();
 

@@ -33,7 +33,7 @@ public class ProjectSecurityConfig {
                     authorize.requestMatchers("/api/auth/greeting","/api/auth/user","/api/auth/change-password","/api/auth/logout").authenticated();
 
                     authorize.requestMatchers("/api/auth/login").permitAll();
-                    authorize.requestMatchers("/api/auth/register").permitAll();
+                    authorize.requestMatchers("/api/auth/register","/api/auth/generateOtp").permitAll();
 
 
 

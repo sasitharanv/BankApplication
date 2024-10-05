@@ -13,4 +13,6 @@ public interface  AuthService {
     UserDetailsDto getCurrentUserDetails();
 
     void changePassword(PasswordChangeDto passwordChangeDto) throws Exception;
+
+    String generateOtpForRegistration(GenerateOtpDto generateOtpDto);
 }
